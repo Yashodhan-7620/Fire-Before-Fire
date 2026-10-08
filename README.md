@@ -38,10 +38,14 @@ Ingestion API (src/ingestion/api.py) ──► SQLite (src/db/models.py)
    └────────────────────────────► Serving API (src/serving/predict_api.py)
                                        loads latest registered model, /predict, /drift-check
 
-Orchestration: src/dags/batch_training_dag.py (Airflow, daily 23:30)
+Orchestration: run_batch.bat (Windows Task Scheduler, daily) via `dvc repro`
+               -- src/dags/batch_training_dag.py (Airflow) is an optional
+                  alternative, not required and not used in CI/CD
 Data versioning: dvc.yaml (DVC)
 Containers: Dockerfile.api + docker-compose.yml
-CI/CD: .github/workflows/ci-cd.yml (lint/test → build image; stops at local deployment)
+CI/CD: .github/workflows/ci-cd.yml -- lint + unit tests + a DVC batch-
+       pipeline dry run (CI, Airflow-free), then a compose-validated,
+       container-smoke-tested image build (CD, local deployment target)
 ```
 
 ## How this maps to the syllabus (for your report)
@@ -65,10 +69,15 @@ src/pipelines/train.py          Trains + logs to MLflow, registers model, checks
 src/serving/predict_api.py      Loads registered model, serves predictions
 src/realtime/stream_monitor.py  Continuous sudden rise/fall detector
 src/alerts/notifier.py          Alert delivery (console + optional webhook)
-src/dags/batch_training_dag.py  Airflow DAG for the daily batch job
+src/dags/batch_training_dag.py  Optional Airflow DAG for the daily batch job (not used in CI/CD)
 dvc.yaml                        DVC pipeline for reproducible preprocess/train
 Dockerfile.api / docker-compose.yml   Local containerized deployment
-.github/workflows/ci-cd.yml     CI (lint/test) + CD (build image), local-deployment scope
+.github/workflows/ci-cd.yml     CI (lint + tests + DVC batch-pipeline dry run) +
+                                 CD (compose validate + image build + container
+                                 smoke test), local-deployment scope, Airflow-free
+scripts/generate_synthetic_data.py  Synthetic sensor data generator used by CI
+                                     to dry-run the batch pipeline (also usable
+                                     for local testing)
 tests/test_pipeline.py          Unit tests for preprocessing
 ```
 
@@ -158,13 +167,37 @@ docker compose run --rm serving-api python -m src.pipelines.train
 
 ## 6. CI/CD
 
-Push to `main` on GitHub to trigger `.github/workflows/ci-cd.yml`:
-- **CI:** `flake8` lint + `pytest` on every push/PR.
-- **CD:** builds the Docker image and tags it with the commit SHA.
-  Deployment is intentionally kept **local-only** for this project —
-  the workflow stops after confirming the image builds; it does not
-  push to a registry or deploy to any server. Add a `docker push` step
-  with registry secrets if you want to take it further.
+Every push/PR to `main` triggers `.github/workflows/ci-cd.yml`, which
+validates the project end to end — lint, unit tests, a real batch-pipeline
+dry run, and a container smoke test — before anything is considered
+"deployable." **Airflow is not used or required anywhere in this
+pipeline**: CI/CD validates the same `run_batch.bat` / `dvc repro` batch
+path described in section 2/4, not the optional Airflow DAG from section 3.
+
+Two jobs run in parallel first:
+
+- **`ci` (Lint & Test):** `flake8` on `src`, then `pytest` for the unit
+  tests in `tests/`.
+- **`batch-pipeline` (Validate batch pipeline):** generates a small,
+  synthetic, fully offline sensor dataset
+  (`scripts/generate_synthetic_data.py`), initializes the SQLite schema,
+  then runs **`dvc repro`** — the real, committed `dvc.yaml` pipeline
+  (`preprocess` → `train`), the same stages `run_batch.bat` runs daily —
+  against that synthetic data, and asserts `data/features.parquet` and
+  `mlruns/` come out the other end. This fails the build if the batch
+  training path itself is broken, not just if a unit test is.
+
+Only once **both** of those pass does the final job run:
+
+- **`cd` (Build and smoke-test deployment image):** validates
+  `docker-compose.yml` with `docker compose config`, builds the Docker
+  image with `Dockerfile.api`, then actually brings up the
+  `ingestion-api` and `serving-api` containers with `docker compose up`
+  and polls both `/health` endpoints before tearing them down. Deployment
+  is intentionally kept **local-only** for this project — CD stops once
+  it has proven the image builds *and* runs correctly; it does not push
+  to a registry or deploy to any server. Add a `docker push` step with
+  registry secrets if you want to take it further.
 
 ## Alert thresholds
 
