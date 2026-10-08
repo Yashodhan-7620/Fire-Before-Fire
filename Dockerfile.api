@@ -1,0 +1,16 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir \
+    fastapi uvicorn[standard] pydantic pandas pyarrow scikit-learn mlflow requests
+
+COPY src/ src/
+COPY data/ data/
+
+ENV PYTHONUNBUFFERED=1
+
+# Default: run the ingestion API. Override CMD to run predict_api or
+# stream_monitor in other containers (see docker-compose.yml).
+CMD ["uvicorn", "src.ingestion.api:app", "--host", "0.0.0.0", "--port", "8000"]

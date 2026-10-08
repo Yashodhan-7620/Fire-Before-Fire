@@ -1,0 +1,7 @@
+[Sun 09/27/2026 20:34:03.51] Starting batch pipeline 
+Preprocessing done: 2 labeled rows -> E:\SEM5\MLOPs\CP\Main\fire-anomaly-mlops\data\features.parquet
+C:\Users\HP\anaconda3\envs\mlops\Lib\site-packages\mlflow\utils\requirements_utils.py:20: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources  # noqa: TID251
+Preprocessing done: 2 labeled rows -> E:\SEM5\MLOPs\CP\Main\fire-anomaly-mlops\data\features.parquet
+Not enough data yet to train (need more history). Skipping.
+[Sun 09/27/2026 20:34:06.42] Batch pipeline finished 

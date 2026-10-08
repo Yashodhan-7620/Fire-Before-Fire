@@ -1,0 +1,31 @@
+# DVC pipeline: version the raw export + the feature table, and make
+# preprocessing reproducible/re-runnable (`dvc repro`), per the
+# syllabus's Data Versioning / DVC Basics unit.
+#
+# One-time setup:
+#   dvc init
+#   dvc remote add -d local_remote ./dvc_store
+#
+# Export a snapshot of the DB to version before each training run:
+#   python -c "from src.db.models import fetch_readings_df; fetch_readings_df().to_csv('data/raw_export.csv', index=False)"
+#   dvc add data/raw_export.csv
+#   git add data/raw_export.csv.dvc .gitignore
+#   git commit -m "data: snapshot sensor readings"
+#   dvc push
+
+stages:
+  preprocess:
+    cmd: python -m src.pipelines.preprocess
+    deps:
+      - data/raw_export.csv
+      - src/pipelines/preprocess.py
+    outs:
+      - data/features.parquet
+
+  train:
+    cmd: python -m src.pipelines.train
+    deps:
+      - data/features.parquet
+      - src/pipelines/train.py
+    outs:
+      - mlruns

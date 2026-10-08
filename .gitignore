@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+data/*.db
+data/*.parquet
+data/*.csv
+mlruns/
+mlflow.db
+dvc_store/
+.env
+mlflow_old.db

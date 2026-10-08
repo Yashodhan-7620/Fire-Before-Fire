@@ -1,0 +1,52 @@
+version: "3.9"
+
+services:
+  ingestion-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: uvicorn src.ingestion.api:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+
+  serving-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: uvicorn src.serving.predict_api:app --host 0.0.0.0 --port 8001
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./data:/app/data
+      - ./mlflow.db:/app/mlflow.db
+      - ./mlruns:/app/mlruns
+    depends_on:
+      - ingestion-api
+
+  realtime-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: python -m src.realtime.stream_monitor
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - ingestion-api
+
+  mlflow-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: mlflow ui --backend-store-uri sqlite:///mlflow.db --host 0.0.0.0 --port 5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlflow.db:/app/mlflow.db
+      - ./mlruns:/app/mlruns
+
+# Batch training (src/pipelines/train.py) is triggered by Airflow
+# (src/dags/batch_training_dag.py) or run manually / via cron — it is
+# not a long-running service, so it is intentionally not listed here.
+# Run it with:  docker compose run --rm serving-api python -m src.pipelines.train

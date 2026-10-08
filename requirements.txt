@@ -1,0 +1,11 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+pandas==2.2.2
+pyarrow==15.0.2
+scikit-learn==1.5.2
+mlflow==2.14.3
+requests==2.32.3
+apache-airflow==2.10.2
+dvc==3.55.2
+pytest==8.3.3
