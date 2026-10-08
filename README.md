@@ -193,10 +193,12 @@ Only once **both** of those pass does the final job run:
   `docker-compose.yml` with `docker compose config`, builds the Docker
   image with `Dockerfile.api`, then actually brings up the
   `ingestion-api` and `serving-api` containers with `docker compose up`
-  and polls both `/health` endpoints before tearing them down. Deployment
-  is intentionally kept **local-only** for this project — CD stops once
-  it has proven the image builds *and* runs correctly; it does not push
-  to a registry or deploy to any server. Add a `docker push` step with
+  and polls both `/health` endpoints before tearing them down. This runs
+  on every push/PR (not just after merging), so "deployability" is
+  checked before code lands on `main`, not only after. Deployment is
+  intentionally kept **local-only** for this project — CD stops once it
+  has proven the image builds *and* runs correctly; it does not push to
+  a registry or deploy to any server. Add a `docker push` step with
   registry secrets if you want to take it further.
 
 ## Alert thresholds
