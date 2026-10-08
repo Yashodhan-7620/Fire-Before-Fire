@@ -23,16 +23,15 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
-import mlflow
-import mlflow.sklearn
-import numpy as np
-import pandas as pd
-from sklearn.ensemble import IsolationForest, RandomForestRegressor
-from sklearn.metrics import mean_absolute_error
-from sklearn.model_selection import train_test_split
+import mlflow  # noqa: E402
+import mlflow.sklearn  # noqa: E402
+import pandas as pd  # noqa: E402
+from sklearn.ensemble import IsolationForest, RandomForestRegressor  # noqa: E402
+from sklearn.metrics import mean_absolute_error  # noqa: E402
+from sklearn.model_selection import train_test_split  # noqa: E402
 
-from src.pipelines.preprocess import FEATURE_COLS
-from src.db.models import insert_alert
+from src.pipelines.preprocess import FEATURE_COLS  # noqa: E402
+from src.db.models import insert_alert  # noqa: E402
 
 FEATURES_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "features.parquet"
 

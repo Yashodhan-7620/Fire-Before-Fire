@@ -16,8 +16,8 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
-from src.db.models import get_conn, insert_alert
-from src.alerts.notifier import send_alert
+from src.db.models import get_conn, insert_alert  # noqa: E402
+from src.alerts.notifier import send_alert  # noqa: E402
 
 POLL_SECONDS = 5
 WINDOW = 12          # ~1 minute of history at 5s polling

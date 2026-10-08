@@ -10,9 +10,9 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
-import os
-import pandas as pd
-from src.db.models import fetch_readings_df
+import os  # noqa: E402
+import pandas as pd  # noqa: E402
+from src.db.models import fetch_readings_df  # noqa: E402
 
 FEATURE_COLS = ["temperature_c", "voltage_v", "current_a", "power_w"]
 

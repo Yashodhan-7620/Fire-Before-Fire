@@ -13,9 +13,9 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
-from fastapi import FastAPI
-from pydantic import BaseModel
-from src.db.models import init_db, insert_reading
+from fastapi import FastAPI  # noqa: E402
+from pydantic import BaseModel  # noqa: E402
+from src.db.models import init_db, insert_reading  # noqa: E402
 
 app = FastAPI(title="Sensor Ingestion API")
 init_db()
