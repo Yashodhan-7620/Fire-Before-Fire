@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }} · Fire Risk MLOps</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <span class="brand">🔥 Fire Risk MLOps</span>
+    {% for href, label in nav_links %}
+      <a href="{{ href }}" class="{{ 'active' if request.url.path == href else '' }}">{{ label }}</a>
+    {% endfor %}
+    <a class="grafana-link" href="{{ grafana_url }}" target="_blank" rel="noopener">📊 Grafana</a>
+  </nav>
+  <main class="content">
+    <h1 class="page-title">{{ title }}</h1>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

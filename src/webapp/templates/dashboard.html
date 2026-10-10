@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card-grid">
+  <div class="card">
+    <div class="label">Readings ingested</div>
+    <div class="value">{{ summary.reading_count }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Active nodes</div>
+    <div class="value">{{ summary.node_count }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Forecaster models loaded</div>
+    <div class="value">{{ summary.models_loaded }} / 4</div>
+  </div>
+  <div class="card">
+    <div class="label">Last trained</div>
+    <div class="value" style="font-size:1.05rem;">{{ summary.last_trained_at }}</div>
+  </div>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0;">Most recent alert</h3>
+  {% if summary.last_alert %}
+    <p><span class="badge badge-danger">{{ summary.last_alert.source }}</span>
+       node <strong>{{ summary.last_alert.node_id }}</strong> at {{ summary.last_alert.ts }}</p>
+    <p class="muted">{{ summary.last_alert.reason }}</p>
+  {% else %}
+    <p class="muted">No alerts recorded yet.</p>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0;">What this dashboard does</h3>
+  <ul class="muted">
+    <li><strong>Ingestion</strong> — view raw sensor readings as they arrive from each node.</li>
+    <li><strong>Drift Detection</strong> — KS-test comparison of recent readings vs. the
+        training-time baseline; a background job checks this automatically and retrains
+        on its own when drift is detected (no Airflow — same <code>dvc repro</code> path
+        as <code>run_batch.bat</code>).</li>
+    <li><strong>Batch Inference</strong> — next-period predictions per node from the latest
+        committed features, with SHAP-explained recommendations when a threshold is crossed.</li>
+    <li><strong>Real-time Inference</strong> — same prediction + explanation flow computed
+        on-the-fly from each node's most recent live readings.</li>
+    <li><strong>Monitoring</strong> — <code>/metrics</code> is scraped by Prometheus;
+        Grafana (top-right link) visualizes it.</li>
+  </ul>
+</div>
+{% endblock %}

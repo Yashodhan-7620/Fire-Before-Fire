@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="panel">
+  <h3 style="margin-top:0;">Per-node summary</h3>
+  <table>
+    <thead><tr><th>Node</th><th>Readings</th><th>First seen</th><th>Last seen</th></tr></thead>
+    <tbody>
+      {% for n in node_counts %}
+      <tr>
+        <td>{{ n.node_id }}</td><td>{{ n.n }}</td><td>{{ n.first_ts }}</td><td>{{ n.last_ts }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">No readings ingested yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0;">Most recent 50 readings</h3>
+  <table>
+    <thead>
+      <tr><th>Node</th><th>Timestamp</th><th>Temp (°C)</th><th>Voltage (V)</th>
+          <th>Current (A)</th><th>Power (W)</th></tr>
+    </thead>
+    <tbody>
+      {% for r in readings %}
+      <tr>
+        <td>{{ r.node_id }}</td><td>{{ r.ts }}</td><td>{{ r.temperature_c }}</td>
+        <td>{{ r.voltage_v }}</td><td>{{ r.current_a }}</td><td>{{ r.power_w }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted">No readings yet — start the ingestion API.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

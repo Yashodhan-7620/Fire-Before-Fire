@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<p class="muted">Predicts the next value for a single node from its most recent live readings
+(computed on-the-fly, the same trained forecaster models as Batch Inference).</p>
+
+<form class="inline" method="get" action="/realtime">
+  <label for="node_id">Node:</label>
+  <select name="node_id" id="node_id" onchange="this.form.submit()">
+    {% for n in nodes %}
+    <option value="{{ n }}" {{ "selected" if n == selected else "" }}>{{ n }}</option>
+    {% endfor %}
+  </select>
+</form>
+
+{% if not nodes %}
+<div class="panel"><p class="muted">No nodes have reported readings yet.</p></div>
+{% elif result is none %}
+<div class="panel"><p class="muted">No readings available for this node yet.</p></div>
+{% elif result.status == "no_model_trained_yet" %}
+<div class="panel"><p class="muted">Latest reading at {{ result.latest_ts }} — but no trained
+model is available yet. Train one first (Drift Detection → Retrain now).</p></div>
+{% else %}
+<div class="panel">
+  <h3 style="margin-top:0;">Node: {{ result.node_id }}
+    <span class="muted">(latest reading {{ result.latest_ts }}, {{ result.samples_used }} samples used)</span></h3>
+  {% if result.emergency %}
+  <div class="emergency-banner">⚠ EMERGENCY — one or more predicted values exceed their safety threshold</div>
+  {% endif %}
+  <table>
+    <thead><tr><th>Parameter</th><th>Predicted next value</th><th>Threshold</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for col, p in result.predictions.items() %}
+      <tr>
+        <td>{{ col }}</td>
+        <td>{{ p.predicted }}</td>
+        <td>{{ p.threshold }}</td>
+        <td>
+          {% if p.crossed %}<span class="badge badge-danger">crossed</span>
+          {% else %}<span class="badge badge-ok">ok</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if result.recommendation %}
+  <div class="recommendation"><strong>Recommended focus (SHAP):</strong> {{ result.recommendation }}</div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

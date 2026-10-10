@@ -46,7 +46,56 @@ services:
       - ./mlflow.db:/app/mlflow.db
       - ./mlruns:/app/mlruns
 
-# Batch training (src/pipelines/train.py) is triggered by Airflow
-# (src/dags/batch_training_dag.py) or run manually / via cron — it is
-# not a long-running service, so it is intentionally not listed here.
-# Run it with:  docker compose run --rm serving-api python -m src.pipelines.train
+  # Single-page dashboard: ingestion view, drift detection (+ automatic
+  # retrain when drift is detected), batch/real-time inference with SHAP
+  # explanations, and the Prometheus /metrics scrape target.
+  webapp:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: uvicorn src.webapp.app:app --host 0.0.0.0 --port 8080
+    ports:
+      - "8080:8080"
+    environment:
+      - GRAFANA_URL=http://localhost:3000
+      - AUTO_GIT_PUSH=${AUTO_GIT_PUSH:-true}
+      - DRIFT_CHECK_INTERVAL_MINUTES=${DRIFT_CHECK_INTERVAL_MINUTES:-15}
+    volumes:
+      - ./data:/app/data
+      - ./mlflow.db:/app/mlflow.db
+      - ./mlruns:/app/mlruns
+      - ./dvc.yaml:/app/dvc.yaml
+      - ./dvc.lock:/app/dvc.lock
+      - ./.dvc:/app/.dvc
+      - ./.dvcignore:/app/.dvcignore
+      - ./.git:/app/.git
+    depends_on:
+      - ingestion-api
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - webapp
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+    depends_on:
+      - prometheus
+
+# Batch training (src/pipelines/train.py) is triggered by the webapp's
+# drift-detection scheduler (automatic retrain) or run manually via the
+# dashboard / `run_batch.bat` — it is not a long-running service itself,
+# so it is intentionally not listed as a separate container here.
+# Run it directly with:  docker compose run --rm serving-api python -m src.pipelines.train
