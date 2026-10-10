@@ -13,6 +13,39 @@ Two detection paths, as specified:
    watches every incoming reading for a *sudden* rise or fall and
    alerts immediately, independent of the trained model.
 
+## Quick start (one command per step)
+
+The fastest way to run the whole system — ingestion, serving, the web
+dashboard, monitoring — is Docker Compose:
+
+```bash
+git clone https://github.com/Yashodhan-7620/Fire-Before-Fire.git   # 1. clone
+cd Fire-Before-Fire                                                 # 2. enter the repo
+cp .env.example .env                                                # 3. copy env defaults (optional: set ALERT_WEBHOOK_URL)
+docker compose up --build                                           # 4. build + start every service
+```
+That's it — open:
+
+| Service | URL |
+|---|---|
+| **Web dashboard** | http://localhost:8080 |
+| Ingestion API docs | http://localhost:8000/docs |
+| Serving API docs | http://localhost:8001/docs |
+| MLflow UI | http://localhost:5000 |
+| Prometheus | http://localhost:9090 |
+| Grafana (`admin`/`admin`) | http://localhost:3000 |
+
+To seed some data and train an initial model before you have real
+sensor readings flowing in, run this once while the stack is up:
+
+```bash
+docker compose run --rm serving-api python -m src.pipelines.preprocess && docker compose run --rm serving-api python -m src.pipelines.train
+```
+
+Prefer running it without Docker? See the step-by-step sections below
+(1–7) for firmware flashing, a plain Python/venv setup, Airflow,
+DVC, and CI/CD details.
+
 ## Architecture
 
 ```
