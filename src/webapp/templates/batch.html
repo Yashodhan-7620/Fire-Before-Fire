@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<p class="muted">Next-period predictions per node, computed from the latest committed
+features (<code>data/features.parquet</code>) using every <code>forecaster_&lt;param&gt;</code>
+model logged by the most recent training run.</p>
+
+{% if not results %}
+<div class="panel"><p class="muted">No features/trained models available yet — run the batch
+pipeline (<code>run_batch.bat</code> or the "Retrain now" button on Drift Detection) first.</p></div>
+{% endif %}
+
+{% for r in results %}
+<div class="panel">
+  <h3 style="margin-top:0;">Node: {{ r.node_id }} <span class="muted">(as of {{ r.ts }})</span></h3>
+  {% if r.emergency %}
+  <div class="emergency-banner">⚠ EMERGENCY — one or more predicted values exceed their safety threshold</div>
+  {% endif %}
+  <table>
+    <thead><tr><th>Parameter</th><th>Predicted next value</th><th>Threshold</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for col, p in r.predictions.items() %}
+      <tr>
+        <td>{{ col }}</td>
+        <td>{{ p.predicted }}</td>
+        <td>{{ p.threshold }}</td>
+        <td>
+          {% if p.crossed %}<span class="badge badge-danger">crossed</span>
+          {% else %}<span class="badge badge-ok">ok</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if r.recommendation %}
+  <div class="recommendation"><strong>Recommended focus (SHAP):</strong> {{ r.recommendation }}</div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

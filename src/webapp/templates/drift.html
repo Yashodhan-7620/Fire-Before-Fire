@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="panel">
+  <p>
+    {% if report.status == "no_data" %}
+      <span class="badge badge-neutral">NO DATA</span> No readings ingested yet.
+    {% elif report.status == "baseline_established" %}
+      <span class="badge badge-neutral">BASELINE SET</span>
+      First check — current data saved as the reference distribution.
+    {% elif report.drift_detected %}
+      <span class="badge badge-danger">DRIFT DETECTED</span>
+      {{ report.drifted_feature_count }} of 4 features drifted vs. the training baseline —
+      an automatic retrain is triggered by the background scheduler.
+    {% else %}
+      <span class="badge badge-ok">NO DRIFT</span> Recent readings match the training baseline.
+    {% endif %}
+  </p>
+
+  <form class="inline" method="post" action="/api/drift/check" onsubmit="return runCheck(event)">
+    <button class="btn" type="submit">Run drift check now</button>
+  </form>
+  <form class="inline" method="post" action="/api/drift/retrain" onsubmit="return runRetrain(event)">
+    <button class="btn btn-secondary" type="submit">Retrain now (fetch → CSV → preprocess → train → push)</button>
+  </form>
+  <p id="action-status" class="muted"></p>
+</div>
+
+{% if report.features %}
+<div class="panel">
+  <h3 style="margin-top:0;">Per-feature KS-test</h3>
+  <table>
+    <thead><tr><th>Feature</th><th>Status</th><th>p-value</th><th>Baseline mean</th><th>Recent mean</th></tr></thead>
+    <tbody>
+      {% for col, f in report.features.items() %}
+      <tr>
+        <td>{{ col }}</td>
+        <td>
+          {% if f.status == "insufficient_data" %}
+            <span class="badge badge-neutral">insufficient data</span>
+          {% elif f.drifted %}
+            <span class="badge badge-danger">drifted</span>
+          {% else %}
+            <span class="badge badge-ok">stable</span>
+          {% endif %}
+        </td>
+        <td>{{ f.p_value if f.p_value is defined else "—" }}</td>
+        <td>{{ f.baseline_mean if f.baseline_mean is defined else "—" }}</td>
+        <td>{{ f.recent_mean if f.recent_mean is defined else "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="panel">
+  <h3 style="margin-top:0;">Retrain history</h3>
+  <table>
+    <thead><tr><th>When</th><th>Trigger</th><th>Rows used</th><th>Result</th><th>Pushed to GitHub</th></tr></thead>
+    <tbody>
+      {% for h in history %}
+      <tr>
+        <td>{{ h.timestamp }}</td>
+        <td>{{ h.trigger }}</td>
+        <td>{{ h.rows_used }}</td>
+        <td>
+          {% if h.success %}<span class="badge badge-ok">success</span>
+          {% else %}<span class="badge badge-danger">failed</span>{% endif %}
+        </td>
+        <td>
+          {% if h.git.pushed %}<span class="badge badge-ok">pushed</span>
+          {% else %}<span class="badge badge-neutral">{{ h.git.reason }}</span>{% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="muted">No retrain runs yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+async function postAndReload(url) {
+  document.getElementById("action-status").textContent = "Working...";
+  const res = await fetch(url, { method: "POST" });
+  await res.json();
+  window.location.reload();
+}
+function runCheck(e) { e.preventDefault(); postAndReload("/api/drift/check"); return false; }
+function runRetrain(e) { e.preventDefault(); postAndReload("/api/drift/retrain"); return false; }
+</script>
+{% endblock %}

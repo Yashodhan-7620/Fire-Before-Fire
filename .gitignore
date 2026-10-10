@@ -5,6 +5,8 @@ venv/
 data/*.db
 data/*.parquet
 data/*.csv
+data/drift_baseline.json
+data/retrain_log.json
 mlruns/
 mlflow.db
 dvc_store/

@@ -2,9 +2,16 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# git is needed at runtime by the webapp's auto-retrain pipeline
+# (src/monitoring/retrain.py best-effort commits + pushes updated
+# dvc.lock / baseline files after retraining).
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir \
-    fastapi uvicorn[standard] pydantic pandas pyarrow scikit-learn mlflow requests
+    fastapi uvicorn[standard] pydantic pandas pyarrow scikit-learn mlflow requests \
+    scipy jinja2 python-multipart prometheus-client apscheduler shap dvc
 
 COPY src/ src/
 COPY data/ data/

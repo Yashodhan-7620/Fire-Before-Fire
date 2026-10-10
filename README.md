@@ -13,6 +13,39 @@ Two detection paths, as specified:
    watches every incoming reading for a *sudden* rise or fall and
    alerts immediately, independent of the trained model.
 
+## Quick start (one command per step)
+
+The fastest way to run the whole system — ingestion, serving, the web
+dashboard, monitoring — is Docker Compose:
+
+```bash
+git clone https://github.com/Yashodhan-7620/Fire-Before-Fire.git   # 1. clone
+cd Fire-Before-Fire                                                 # 2. enter the repo
+cp .env.example .env                                                # 3. copy env defaults (optional: set ALERT_WEBHOOK_URL)
+docker compose up --build                                           # 4. build + start every service
+```
+That's it — open:
+
+| Service | URL |
+|---|---|
+| **Web dashboard** | http://localhost:8080 |
+| Ingestion API docs | http://localhost:8000/docs |
+| Serving API docs | http://localhost:8001/docs |
+| MLflow UI | http://localhost:5000 |
+| Prometheus | http://localhost:9090 |
+| Grafana (`admin`/`admin`) | http://localhost:3000 |
+
+To seed some data and train an initial model before you have real
+sensor readings flowing in, run this once while the stack is up:
+
+```bash
+docker compose run --rm serving-api python -m src.pipelines.preprocess && docker compose run --rm serving-api python -m src.pipelines.train
+```
+
+Prefer running it without Docker? See the step-by-step sections below
+(1–7) for firmware flashing, a plain Python/venv setup, Airflow,
+DVC, and CI/CD details.
+
 ## Architecture
 
 ```
@@ -35,13 +68,28 @@ Ingestion API (src/ingestion/api.py) ──► SQLite (src/db/models.py)
    │                                 → logged + registered in MLflow
    │                                         │
    │                                         ▼
-   └────────────────────────────► Serving API (src/serving/predict_api.py)
-                                       loads latest registered model, /predict, /drift-check
+   ├────────────────────────────► Serving API (src/serving/predict_api.py)
+   │                                   loads latest registered model, /predict, /drift-check
+   │
+   └────────────────────────────► Web dashboard (src/webapp/app.py, FastAPI + Jinja2)
+                                       Ingestion view · drift detection (KS-test, src/monitoring/drift.py)
+                                       → automatic retrain on drift (src/monitoring/retrain.py: fetch all
+                                       history → CSV → `dvc repro` → best-effort git push) · batch +
+                                       real-time inference with SHAP explanations (src/monitoring/explain.py)
+                                       and emergency/recommendation banners · /metrics for Prometheus,
+                                       visualized in Grafana (monitoring/)
 
-Orchestration: src/dags/batch_training_dag.py (Airflow, daily 23:30)
+Orchestration: run_batch.bat (Windows Task Scheduler, daily) via `dvc repro`,
+               and the web dashboard's own drift-triggered auto-retrain
+               -- src/dags/batch_training_dag.py (Airflow) is an optional
+                  alternative, not required and not used in CI/CD
 Data versioning: dvc.yaml (DVC)
-Containers: Dockerfile.api + docker-compose.yml
-CI/CD: .github/workflows/ci-cd.yml (lint/test → build image; stops at local deployment)
+Containers: Dockerfile.api + docker-compose.yml (ingestion/serving/webapp
+            APIs, realtime monitor, mlflow UI, Prometheus, Grafana)
+CI/CD: .github/workflows/ci-cd.yml -- lint + unit tests (incl. the web
+       dashboard) + a DVC batch-pipeline dry run (CI, Airflow-free), then a
+       compose-validated, container-smoke-tested image build (CD, local
+       deployment target)
 ```
 
 ## How this maps to the syllabus (for your report)
@@ -51,8 +99,8 @@ CI/CD: .github/workflows/ci-cd.yml (lint/test → build image; stops at local de
 | I | ML lifecycle, versioning, reproducibility | Overall pipeline structure; DVC + MLflow |
 | II | Data versioning, experiment tracking, feature engineering, model registry | `dvc.yaml`, `train.py` (MLflow tracking + registry) |
 | III | Pipelines/DAGs, workflow automation | `src/dags/batch_training_dag.py` (Airflow) |
-| IV | Model deployment, REST API, batch vs real-time inference, drift basics | `predict_api.py` (`/predict`, `/drift-check`), `stream_monitor.py` |
-| V/VI | Monitoring, alerting, industry application (predictive maintenance) | `alerts/notifier.py`, threshold + forecast alerts |
+| IV | Model deployment, REST API, batch vs real-time inference, drift basics | `predict_api.py` (`/predict`, `/drift-check`), `stream_monitor.py`, `src/webapp/app.py` |
+| V/VI | Monitoring, alerting, explainability, industry application (predictive maintenance) | `alerts/notifier.py`, threshold + forecast alerts, `src/monitoring/` (drift, auto-retrain, SHAP), Prometheus + Grafana (`monitoring/`) |
 
 ## Repo layout
 
@@ -65,11 +113,27 @@ src/pipelines/train.py          Trains + logs to MLflow, registers model, checks
 src/serving/predict_api.py      Loads registered model, serves predictions
 src/realtime/stream_monitor.py  Continuous sudden rise/fall detector
 src/alerts/notifier.py          Alert delivery (console + optional webhook)
-src/dags/batch_training_dag.py  Airflow DAG for the daily batch job
+src/dags/batch_training_dag.py  Optional Airflow DAG for the daily batch job (not used in CI/CD)
+src/monitoring/drift.py         KS-test drift detection (recent readings vs. training baseline)
+src/monitoring/retrain.py       Auto-retrain: fetch all history → CSV → `dvc repro` → best-effort git push
+src/monitoring/explain.py       SHAP explanations → human-readable "what to focus on" recommendations
+src/monitoring/metrics.py       Prometheus counters/gauges/histograms for the dashboard
+src/webapp/app.py               FastAPI dashboard: ingestion view, drift detection, batch/real-time
+                                 inference, /metrics; background scheduler auto-retrains on drift
+src/webapp/services.py          Loads the latest MLflow forecasters, runs batch/real-time inference
+src/webapp/templates/           Jinja2 templates (navbar + pages), styled with the project color palette
 dvc.yaml                        DVC pipeline for reproducible preprocess/train
-Dockerfile.api / docker-compose.yml   Local containerized deployment
-.github/workflows/ci-cd.yml     CI (lint/test) + CD (build image), local-deployment scope
+Dockerfile.api / docker-compose.yml   Local containerized deployment (adds webapp, prometheus, grafana)
+monitoring/prometheus.yml       Prometheus scrape config (targets the webapp's /metrics)
+monitoring/grafana/             Provisioned Grafana datasource + starter dashboard
+.github/workflows/ci-cd.yml     CI (lint + tests, incl. the dashboard + DVC batch-pipeline dry run) +
+                                 CD (compose validate + image build + container
+                                 smoke test), local-deployment scope, Airflow-free
+scripts/generate_synthetic_data.py  Synthetic sensor data generator used by CI
+                                     to dry-run the batch pipeline (also usable
+                                     for local testing)
 tests/test_pipeline.py          Unit tests for preprocessing
+tests/test_webapp.py            Smoke tests for every dashboard page + the drift/metrics APIs
 ```
 
 ## 1. Firmware setup
@@ -150,21 +214,87 @@ cp .env.example .env       # optionally set ALERT_WEBHOOK_URL
 docker compose up --build
 ```
 This starts, on your machine: ingestion API (`:8000`), serving API
-(`:8001`), the real-time monitor, and the MLflow UI (`:5000`). Run the
-batch job inside the compose network with:
+(`:8001`), the **web dashboard** (`:8080`, see section 6), the
+real-time monitor, the MLflow UI (`:5000`), **Prometheus** (`:9090`)
+and **Grafana** (`:3000`, default login `admin` / `admin`, with the
+dashboard in `monitoring/grafana/dashboards/` provisioned automatically).
+Run the batch job directly inside the compose network with:
 ```bash
 docker compose run --rm serving-api python -m src.pipelines.train
 ```
 
-## 6. CI/CD
+## 6. Web dashboard — ingestion, drift detection, auto-retrain, inference, SHAP, monitoring
 
-Push to `main` on GitHub to trigger `.github/workflows/ci-cd.yml`:
-- **CI:** `flake8` lint + `pytest` on every push/PR.
-- **CD:** builds the Docker image and tags it with the commit SHA.
-  Deployment is intentionally kept **local-only** for this project —
-  the workflow stops after confirming the image builds; it does not
-  push to a registry or deploy to any server. Add a `docker push` step
-  with registry secrets if you want to take it further.
+A single FastAPI app (`src/webapp/app.py`) ties every feature above
+together behind one navbar, styled with the project's color palette
+(maroon `#6D0808` / near-black `#2D0000` / sage `#757D6F` / cream
+`#EEEAD7`):
+
+```bash
+uvicorn src.webapp.app:app --host 0.0.0.0 --port 8080   # or: docker compose up webapp
+```
+
+| Page | What it does |
+|---|---|
+| **Dashboard** (`/`) | Readings/node counts, last alert, models loaded, last trained time. |
+| **Ingestion** (`/ingestion`) | Per-node reading counts/date-range and the latest 50 raw readings. |
+| **Drift Detection** (`/drift`) | Runs a **two-sample Kolmogorov-Smirnov test** (`src/monitoring/drift.py`) per raw feature, comparing a recent window of readings to the distribution saved as the baseline the last time the model trained. "Run drift check now" and "Retrain now" buttons trigger the same checks/pipeline the background scheduler runs automatically every `DRIFT_CHECK_INTERVAL_MINUTES` (default 15) — **when drift is detected, the system retrains itself with no manual step**: it fetches *all* historical readings from the database, saves them to `data/raw_export.csv`, runs `dvc repro` (the exact `preprocess → train` path `run_batch.bat` runs), refreshes the drift baseline, and then best-effort commits + pushes the updated `dvc.lock`/baseline to GitHub (`src/monitoring/retrain.py`; set `AUTO_GIT_PUSH=false` to disable the push, e.g. in CI/sandboxes without git credentials). Every run is logged to `data/retrain_log.json` and shown as history on this page. |
+| **Batch Inference** (`/batch`) | Next-period predictions for every node from the latest committed features (`data/features.parquet`), using every `forecaster_<param>` model from the most recent MLflow run. Crossing a threshold (`src/pipelines/train.py::THRESHOLDS`) shows an **emergency banner**. |
+| **Real-time Inference** (`/realtime`) | Same prediction/threshold/emergency flow, but the feature vector is built on-the-fly from each node's most recent live readings instead of the precomputed feature table — so you get a live "predicted next value" per node. |
+
+**Explainability:** whenever a threshold is crossed (batch or
+real-time), `src/monitoring/explain.py` runs `shap.TreeExplainer` on
+the forecaster that crossed it, picks the strongest contributing
+feature, and turns it into a plain-English **recommendation** ("Inspect
+wiring, connectors and the connected load...", etc.) shown right under
+the emergency banner — "what aspect to focus on."
+
+**Monitoring:** the app exposes Prometheus metrics at `/metrics`
+(`src/monitoring/metrics.py`) — drift checks/events, retrain
+runs/failures, batch/real-time predictions served, emergency alerts,
+last predicted value per node/parameter, inference latency, and last
+training time. `monitoring/prometheus.yml` scrapes it, and Grafana is
+pre-provisioned (`monitoring/grafana/`) with a starter dashboard
+visualizing all of the above — open it from the dashboard's top-right
+**📊 Grafana** link (`http://localhost:3000`).
+
+## 7. CI/CD
+
+Every push/PR to `main` triggers `.github/workflows/ci-cd.yml`, which
+validates the project end to end — lint, unit tests, a real batch-pipeline
+dry run, and a container smoke test — before anything is considered
+"deployable." **Airflow is not used or required anywhere in this
+pipeline**: CI/CD validates the same `run_batch.bat` / `dvc repro` batch
+path described in section 2/4, not the optional Airflow DAG from section 3.
+
+Two jobs run in parallel first:
+
+- **`ci` (Lint & Test):** `flake8` on `src`, then `pytest` for the unit
+  tests in `tests/` (including `tests/test_webapp.py`, which exercises
+  every dashboard page plus the drift-check and `/metrics` APIs).
+- **`batch-pipeline` (Validate batch pipeline):** generates a small,
+  synthetic, fully offline sensor dataset
+  (`scripts/generate_synthetic_data.py`), initializes the SQLite schema,
+  then runs **`dvc repro`** — the real, committed `dvc.yaml` pipeline
+  (`preprocess` → `train`), the same stages `run_batch.bat` runs daily —
+  against that synthetic data, and asserts `data/features.parquet` and
+  `mlruns/` come out the other end. This fails the build if the batch
+  training path itself is broken, not just if a unit test is.
+
+Only once **both** of those pass does the final job run:
+
+- **`cd` (Build and smoke-test deployment image):** validates
+  `docker-compose.yml` with `docker compose config`, builds the Docker
+  image with `Dockerfile.api`, then actually brings up the
+  `ingestion-api`, `serving-api` **and `webapp`** containers with
+  `docker compose up` and polls all three `/health` endpoints before
+  tearing them down. This runs on every push/PR (not just after
+  merging), so "deployability" is checked before code lands on `main`,
+  not only after. Deployment is intentionally kept **local-only** for
+  this project — CD stops once it has proven every image builds *and*
+  runs correctly; it does not push to
+  a registry or deploy to any server. Add a `docker push` step with
+  registry secrets if you want to take it further.
 
 ## Alert thresholds
 
@@ -184,3 +314,10 @@ on them — the shipped numbers are placeholders.
   everything runnable without any cloud account; swapping to
   Postgres/S3-backed MLflow later only touches `src/db/models.py` and
   `MLFLOW_TRACKING_URI`.
+- Web dashboard env vars (all optional, sensible defaults): `GRAFANA_URL`
+  (link in the navbar, default `http://localhost:3000`), `AUTO_GIT_PUSH`
+  (`true`/`false`, default `true` — auto-retrain's commit+push step is
+  always best-effort and never crashes the app if git isn't configured),
+  `DRIFT_CHECK_INTERVAL_MINUTES` (default `15`), `DISABLE_SCHEDULER=1`
+  to turn off the background drift-check job entirely (it's already
+  disabled automatically under `pytest`).

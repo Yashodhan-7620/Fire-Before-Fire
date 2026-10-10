@@ -18,11 +18,23 @@ jobs:
         with:
           python-version: "3.11"
 
+      # Versions pinned to match requirements.txt so CI doesn't silently
+      # drift onto newer, incompatible releases (e.g. newer setuptools
+      # drops pkg_resources that MLflow needs; newer SQLAlchemy breaks
+      # MLflow 2.14's tracking store). apache-airflow is intentionally
+      # NOT installed -- this project's batch orchestration in CI and in
+      # production is run_batch.bat / `dvc repro`, not Airflow (which
+      # needs WSL and is kept only as an optional alternative, see
+      # README section 3).
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install flake8 pytest
-          pip install fastapi uvicorn pydantic pandas pyarrow scikit-learn mlflow requests
+          pip install fastapi==0.115.0 "uvicorn[standard]==0.30.6" pydantic==2.9.2 \
+                      pandas==2.2.2 pyarrow==15.0.2 scikit-learn==1.5.2 mlflow==2.14.3 \
+                      requests==2.32.3 "sqlalchemy<2.1" "setuptools<81" \
+                      scipy==1.13.1 jinja2==3.1.4 python-multipart==0.0.9 \
+                      prometheus-client==0.20.0 APScheduler==3.10.4 shap==0.46.0
 
       - name: Lint
         run: flake8 src --max-line-length=110 --extend-ignore=E203
@@ -30,21 +42,97 @@ jobs:
       - name: Run tests
         run: pytest -q
 
-  cd:
-    name: Build local deployment image
-    needs: ci
+  batch-pipeline:
+    name: Validate batch pipeline (DVC preprocess -> train)
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Same pinned runtime deps as the Lint & Test job, plus DVC itself
+      # (pinned to match requirements.txt) and the pathspec version DVC
+      # needs on this Python/pip combination. No apache-airflow here either
+      # -- see the note above, this job exercises the exact `run_batch.bat`
+      # path (preprocess -> train), not any Airflow DAG.
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install fastapi==0.115.0 "uvicorn[standard]==0.30.6" pydantic==2.9.2 \
+                      pandas==2.2.2 pyarrow==15.0.2 scikit-learn==1.5.2 mlflow==2.14.3 \
+                      requests==2.32.3 "sqlalchemy<2.1" "setuptools<81" \
+                      dvc==3.55.2 pathspec==0.12.1
+
+      - name: Initialize SQLite schema
+        run: python -m src.db.models
+
+      # Small, deterministic, fully offline synthetic dataset (same schema
+      # real sensor exports use) -- no network calls, just enough rows for
+      # the pipeline to produce real labeled hourly features.
+      - name: Generate synthetic raw sensor data
+        run: python scripts/generate_synthetic_data.py --nodes 2 --hours 3
+
+      # Runs the actual committed dvc.yaml pipeline (preprocess -> train) --
+      # the same stages run_batch.bat triggers in production -- end to end
+      # against the synthetic data. `--no-commit` skips writing DVC's
+      # run-cache/object cache (not needed for a throwaway CI dataset).
+      # Fails the build if preprocessing or training raises any error.
+      - name: Run batch pipeline via dvc repro (preprocess -> train)
+        env:
+          RESAMPLE_FREQ: "5min"
+        run: dvc repro --no-commit
+
+      - name: Verify pipeline outputs
+        run: |
+          test -s data/features.parquet
+          test -d mlruns
+          echo "Batch pipeline produced data/features.parquet and mlruns/ successfully."
+
+  cd:
+    name: Build and smoke-test deployment image
+    needs: [ci, batch-pipeline]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose config
+        run: docker compose config
 
       - name: Build Docker image
         run: docker build -f Dockerfile.api -t fire-anomaly-mlops:${{ github.sha }} .
 
-      # Deployment target for this project is LOCAL only (docker compose
-      # on your own machine) -- CD here stops at "image builds cleanly
-      # and is tagged," it does not push to any cloud registry or
-      # deploy anywhere. To go further, add a `docker push` step with
-      # registry credentials in repo secrets.
-      - name: Confirm image built
-        run: docker images fire-anomaly-mlops
+      # Deployment target for this project is LOCAL only (docker compose on
+      # your own machine) -- CD validates that the built image actually
+      # deploys and serves traffic (ingestion + serving containers both
+      # answer /health), but it does not push to any registry or deploy to
+      # a server. Add a `docker push` step with registry secrets if you
+      # want to take it further.
+      - name: Prepare compose bind-mount placeholders
+        run: |
+          mkdir -p mlruns
+          touch mlflow.db
+
+      - name: Start ingestion + serving + webapp containers
+        run: docker compose up -d --build ingestion-api serving-api webapp
+
+      - name: Smoke-test /health endpoints
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/health && curl -sf http://localhost:8001/health \
+               && curl -sf http://localhost:8080/health; then
+              echo "All services are healthy."
+              exit 0
+            fi
+            echo "Waiting for services to come up... ($i/30)"
+            sleep 2
+          done
+          echo "Services did not become healthy in time."
+          docker compose logs
+          exit 1
+
+      - name: Tear down containers
+        if: always()
+        run: docker compose down -v

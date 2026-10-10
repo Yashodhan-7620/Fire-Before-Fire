@@ -10,9 +10,9 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
-import os
-import pandas as pd
-from src.db.models import fetch_readings_df
+import os  # noqa: E402
+import pandas as pd  # noqa: E402
+from src.db.models import fetch_readings_df  # noqa: E402
 
 FEATURE_COLS = ["temperature_c", "voltage_v", "current_a", "power_w"]
 
@@ -47,7 +47,16 @@ def load_raw() -> pd.DataFrame:
         df = fetch_readings_df()
     if df.empty:
         return df
-    df["ts"] = pd.to_datetime(df["ts"])
+    # format="mixed" tolerates a CSV snapshot that blends timestamps
+    # written at different times/paths (e.g. plain "YYYY-MM-DD HH:MM:SS"
+    # from an older export alongside ISO-8601-with-offset strings from
+    # insert_reading()) -- which is exactly what the auto-retrain
+    # pipeline's "fetch *all* historical readings" snapshot can contain.
+    # utc=True first normalizes any timezone-aware values to UTC, then
+    # tz_localize(None) drops the offset so every row ends up as a plain
+    # (implicitly-UTC) datetime64 -- pandas can't compare/sort a column
+    # that mixes tz-aware and tz-naive values otherwise.
+    df["ts"] = pd.to_datetime(df["ts"], format="mixed", utc=True).dt.tz_localize(None)
     return df
 
 
