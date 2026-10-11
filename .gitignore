@@ -12,3 +12,4 @@ mlflow.db
 dvc_store/
 .env
 mlflow_old.db
+firmware/
