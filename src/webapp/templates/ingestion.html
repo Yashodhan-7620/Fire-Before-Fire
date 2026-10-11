@@ -7,7 +7,7 @@
     <tbody>
       {% for n in node_counts %}
       <tr>
-        <td>{{ n.node_id }}</td><td>{{ n.n }}</td><td>{{ n.first_ts }}</td><td>{{ n.last_ts }}</td>
+        <td>{{ n.node_id }}</td><td>{{ n.n }}</td><td>{{ n.first_ts|ist }}</td><td>{{ n.last_ts|ist }}</td>
       </tr>
       {% else %}
       <tr><td colspan="4" class="muted">No readings ingested yet.</td></tr>
@@ -26,7 +26,7 @@
     <tbody>
       {% for r in readings %}
       <tr>
-        <td>{{ r.node_id }}</td><td>{{ r.ts }}</td><td>{{ r.temperature_c }}</td>
+        <td>{{ r.node_id }}</td><td>{{ r.ts|ist }}</td><td>{{ r.temperature_c }}</td>
         <td>{{ r.voltage_v }}</td><td>{{ r.current_a }}</td><td>{{ r.power_w }}</td>
       </tr>
       {% else %}

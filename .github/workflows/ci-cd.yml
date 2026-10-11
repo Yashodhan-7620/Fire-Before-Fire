@@ -29,7 +29,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install flake8 pytest
+          pip install flake8 pytest httpx
           pip install fastapi==0.115.0 "uvicorn[standard]==0.30.6" pydantic==2.9.2 \
                       pandas==2.2.2 pyarrow==15.0.2 scikit-learn==1.5.2 mlflow==2.14.3 \
                       requests==2.32.3 "sqlalchemy<2.1" "setuptools<81" \

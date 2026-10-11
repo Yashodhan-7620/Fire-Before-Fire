@@ -40,10 +40,10 @@ EXPERIMENT_NAME = "fire_risk_forecasting"
 MODEL_NAME = "fire_risk_forecaster"
 
 THRESHOLDS = {
-    "temperature_c": 55.0,
-    "power_w": 1500.0,
-    "current_a": 10.0,
-    "voltage_v": 280.0,
+    "temperature_c": 33.0,
+    "power_w": 1.0,
+    "current_a": 0.09,
+    "voltage_v": 10.0,
 }
 
 FEATURE_INPUT_COLS = [f"{c}_mean" for c in FEATURE_COLS] + \

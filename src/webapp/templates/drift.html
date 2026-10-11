@@ -60,7 +60,7 @@
     <tbody>
       {% for h in history %}
       <tr>
-        <td>{{ h.timestamp }}</td>
+        <td>{{ h.timestamp|ist }}</td>
         <td>{{ h.trigger }}</td>
         <td>{{ h.rows_used }}</td>
         <td>

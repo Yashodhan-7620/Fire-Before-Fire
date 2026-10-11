@@ -11,18 +11,27 @@ pipeline (<code>run_batch.bat</code> or the "Retrain now" button on Drift Detect
 
 {% for r in results %}
 <div class="panel">
-  <h3 style="margin-top:0;">Node: {{ r.node_id }} <span class="muted">(as of {{ r.ts }})</span></h3>
+  <h3 style="margin-top:0;">Node: {{ r.node_id }} <span class="muted">(as of {{ r.ts|ist }})</span></h3>
   {% if r.emergency %}
   <div class="emergency-banner">⚠ EMERGENCY — one or more predicted values exceed their safety threshold</div>
   {% endif %}
+  <div class="recommendation" style="margin-bottom:12px;">
+    <strong>Safety verdict:</strong> {{ r.safety.message }}
+    {% if r.safety.concerning %}<br><strong>Most concerning parameter:</strong> {{ r.safety.concerning }}{% endif %}
+  </div>
   <table>
-    <thead><tr><th>Parameter</th><th>Predicted next value</th><th>Threshold</th><th>Status</th></tr></thead>
+    <thead><tr><th>Parameter</th><th>Current (mean)</th><th>Predicted next value</th><th>Threshold</th><th>% of limit</th><th>Trend</th><th>Time to limit</th><th>Status</th></tr></thead>
     <tbody>
-      {% for col, p in r.predictions.items() %}
+      {% for d in r.safety.details %}
+      {% set p = r.predictions[d.param] %}
       <tr>
-        <td>{{ col }}</td>
+        <td>{{ d.param }}{% if d.param == r.safety.concerning %} <span class="badge badge-danger">top concern</span>{% endif %}</td>
+        <td>{{ d.current }}</td>
         <td>{{ p.predicted }}</td>
         <td>{{ p.threshold }}</td>
+        <td>{{ d.usage_pct }}%</td>
+        <td>{{ d.trend }}</td>
+        <td>{% if d.minutes_to_threshold is none %}not trending to limit{% else %}~{{ d.minutes_to_threshold }} min{% endif %}</td>
         <td>
           {% if p.crossed %}<span class="badge badge-danger">crossed</span>
           {% else %}<span class="badge badge-ok">ok</span>{% endif %}

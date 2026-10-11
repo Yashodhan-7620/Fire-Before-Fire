@@ -23,7 +23,32 @@ git clone https://github.com/Yashodhan-7620/Fire-Before-Fire.git   # 1. clone
 cd Fire-Before-Fire                                                 # 2. enter the repo
 cp .env.example .env                                                # 3. copy env defaults (optional: set ALERT_WEBHOOK_URL)
 docker compose up --build                                           # 4. build + start every service
+docker compose up -d --build
+# only needed to retrain on the CSV:
+docker compose run --rm -e RESAMPLE_FREQ=2min serving-api sh -c "python -m src.pipelines.preprocess && python -m src.pipelines.train"
+
+docker compose up -d --build 
+#is still the right command. The first time I ran it, the webapp image kept the old code. Running docker compose build and then 
+docker compose up -d picked up the change.
+
+#If a change doesn't show up, use the same two steps or 
+docker compose up -d --build --force-recreate webapp.
+Run docker compose restart webapp 
+#after replacing mlflow.db or retraining, otherwise the batch page can show nothing.
+
+#Stop only the webapp: 
+docker compose stop webapp. 
+#Start it again with 
+docker compose start webapp.
+
+#Stop everything: 
+docker compose down. 
+#Add -v only if you also want to delete volumes (Grafana's saved data).
+
+#For firewall - keep running
+docker compose logs -f ingestion-api
 ```
+
 That's it — open:
 
 | Service | URL |
@@ -50,13 +75,13 @@ DVC, and CI/CD details.
 
 ```
 ESP32 sensor node (firmware/sensor_node.ino)
-   │  DS18B20 temp, EmonLib volt/current, LCD+RGB status
-   │  HTTP POST every 5s
+   │  DS18B20 temp, EmonLib volt/current, 
+   │  HTTP POST every 2s
    ▼
 Ingestion API (src/ingestion/api.py) ──► SQLite (src/db/models.py)
    │                                         │
    │                                         ├──► Real-time monitor (src/realtime/stream_monitor.py)
-   │                                         │       polls new rows, z-score + rate-of-change → alerts
+   │                                         │       pulls new rows, z-score + rate-of-change → alerts
    │                                         │
    │                                         ▼
    │                              Preprocess (src/pipelines/preprocess.py)
@@ -99,7 +124,7 @@ CI/CD: .github/workflows/ci-cd.yml -- lint + unit tests (incl. the web
 | I | ML lifecycle, versioning, reproducibility | Overall pipeline structure; DVC + MLflow |
 | II | Data versioning, experiment tracking, feature engineering, model registry | `dvc.yaml`, `train.py` (MLflow tracking + registry) |
 | III | Pipelines/DAGs, workflow automation | `src/dags/batch_training_dag.py` (Airflow) |
-| IV | Model deployment, REST API, batch vs real-time inference, drift basics | `predict_api.py` (`/predict`, `/drift-check`), `stream_monitor.py`, `src/webapp/app.py` |
+| IV | Model deployment, Fast API, batch vs real-time inference, drift basics | `predict_api.py` (`/predict`, `/drift-check`), `stream_monitor.py`, `src/webapp/app.py` |
 | V/VI | Monitoring, alerting, explainability, industry application (predictive maintenance) | `alerts/notifier.py`, threshold + forecast alerts, `src/monitoring/` (drift, auto-retrain, SHAP), Prometheus + Grafana (`monitoring/`) |
 
 ## Repo layout

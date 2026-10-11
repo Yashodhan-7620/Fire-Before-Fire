@@ -21,7 +21,7 @@ FEATURE_COLS = ["temperature_c", "voltage_v", "current_a", "power_w"]
 #   set RESAMPLE_FREQ=2min && python -m src.pipelines.preprocess
 # or on Mac/Linux:
 #   RESAMPLE_FREQ=2min python -m src.pipelines.preprocess
-RESAMPLE_FREQ = os.environ.get("RESAMPLE_FREQ", "1h")
+RESAMPLE_FREQ = os.environ.get("RESAMPLE_FREQ", "5min")
 
 _RAW_CSV_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -57,7 +57,23 @@ def load_raw() -> pd.DataFrame:
     # (implicitly-UTC) datetime64 -- pandas can't compare/sort a column
     # that mixes tz-aware and tz-naive values otherwise.
     df["ts"] = pd.to_datetime(df["ts"], format="mixed", utc=True).dt.tz_localize(None)
-    return df
+    return clean_raw(df)
+
+
+# Physically implausible readings for this sensor node (ESP32 boot
+# transients, disconnected probes, API test rows) that would otherwise
+# skew the forecaster.
+MAX_VALID = {"current_a": 1.0, "power_w": 10.0}
+MIN_VALID = {"voltage_v": 4.0}
+
+
+def clean_raw(df: pd.DataFrame) -> pd.DataFrame:
+    df = df[df["node_id"].astype(str).str.startswith("node-")]
+    for col, hi in MAX_VALID.items():
+        df = df[df[col] <= hi]
+    for col, lo in MIN_VALID.items():
+        df = df[df[col] >= lo]
+    return df.reset_index(drop=True)
 
 
 def build_hourly_features(df: pd.DataFrame) -> pd.DataFrame:

@@ -41,3 +41,19 @@ MODEL_LAST_TRAINED_TIMESTAMP = Gauge(
     "model_last_trained_timestamp", "Unix timestamp of the last successful retrain",
     registry=REGISTRY,
 )
+
+
+def restore_from_retrain_history(history: list) -> None:
+    """Counters live in process memory, so seed them from the persisted
+    retrain log after a restart."""
+    from datetime import datetime
+
+    last_ok = None
+    for e in history:
+        RETRAIN_RUNS.labels(trigger=e.get("trigger", "manual")).inc()
+        if e.get("success"):
+            last_ok = e.get("timestamp")
+        else:
+            RETRAIN_FAILURES.inc()
+    if last_ok:
+        MODEL_LAST_TRAINED_TIMESTAMP.set(datetime.fromisoformat(last_ok).timestamp())

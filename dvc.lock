@@ -5,14 +5,34 @@ stages:
     deps:
     - path: data/raw_export.csv
       hash: md5
-      md5: b95750f184770d968466487cfa1cd6a0
-      size: 65179
+      md5: c45c8e0cebed105a5cb6f94bde1bc403
+      size: 135831
+      isexec: true
     - path: src/pipelines/preprocess.py
       hash: md5
-      md5: df29bbcac3169e88fa105eb1c32ff868
-      size: 3576
+      md5: 8ee641597f6c417e7509d850fbeb97e2
+      size: 4956
+      isexec: true
     outs:
     - path: data/features.parquet
       hash: md5
-      md5: 2f22636598f06cf1b305803ee328b943
-      size: 16292
+      md5: 336623fa1fa9a1c5739e491b769b96ee
+      size: 20727
+  train:
+    cmd: python -m src.pipelines.train
+    deps:
+    - path: data/features.parquet
+      hash: md5
+      md5: 336623fa1fa9a1c5739e491b769b96ee
+      size: 20727
+    - path: src/pipelines/train.py
+      hash: md5
+      md5: c8ca5a1c555893cd101d3d8240d68e7b
+      size: 4935
+      isexec: true
+    outs:
+    - path: mlruns
+      hash: md5
+      md5: 2194165b0088803ff543e560f00166cc.dir
+      size: 38160013
+      nfiles: 425

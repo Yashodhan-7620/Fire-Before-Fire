@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   ingestion-api:
     build:
@@ -57,7 +55,8 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - GRAFANA_URL=http://localhost:3000
+      - GRAFANA_URL=http://localhost:3001
+      - RESAMPLE_FREQ=${RESAMPLE_FREQ:-5min}
       - AUTO_GIT_PUSH=${AUTO_GIT_PUSH:-true}
       - DRIFT_CHECK_INTERVAL_MINUTES=${DRIFT_CHECK_INTERVAL_MINUTES:-15}
     volumes:
@@ -78,21 +77,27 @@ services:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
     depends_on:
       - webapp
 
   grafana:
     image: grafana/grafana:11.2.0
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - grafana-data:/var/lib/grafana
     depends_on:
       - prometheus
+
+volumes:
+  prometheus-data:
+  grafana-data:
 
 # Batch training (src/pipelines/train.py) is triggered by the webapp's
 # drift-detection scheduler (automatic retrain) or run manually via the

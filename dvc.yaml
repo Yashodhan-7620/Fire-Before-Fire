@@ -28,4 +28,5 @@ stages:
       - data/features.parquet
       - src/pipelines/train.py
     outs:
-      - mlruns
+      - mlruns:
+          persist: true

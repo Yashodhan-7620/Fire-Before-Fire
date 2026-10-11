@@ -17,12 +17,12 @@
 {% elif result is none %}
 <div class="panel"><p class="muted">No readings available for this node yet.</p></div>
 {% elif result.status == "no_model_trained_yet" %}
-<div class="panel"><p class="muted">Latest reading at {{ result.latest_ts }} — but no trained
+<div class="panel"><p class="muted">Latest reading at {{ result.latest_ts|ist }} — but no trained
 model is available yet. Train one first (Drift Detection → Retrain now).</p></div>
 {% else %}
 <div class="panel">
   <h3 style="margin-top:0;">Node: {{ result.node_id }}
-    <span class="muted">(latest reading {{ result.latest_ts }}, {{ result.samples_used }} samples used)</span></h3>
+    <span class="muted">(latest reading {{ result.latest_ts|ist }}, {{ result.samples_used }} samples used)</span></h3>
   {% if result.emergency %}
   <div class="emergency-banner">⚠ EMERGENCY — one or more predicted values exceed their safety threshold</div>
   {% endif %}

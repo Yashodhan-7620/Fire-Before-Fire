@@ -99,6 +99,68 @@ def list_nodes() -> list:
     return [r["node_id"] for r in rows]
 
 
+def _assess_safety(row: pd.Series, predictions: dict) -> dict:
+    """Turns forecasts into a verdict: how close each parameter is to
+    its threshold, which one is most concerning, and how long the
+    device can be kept running (linear extrapolation of the forecast
+    trend, in units of the batch resample period)."""
+    import os
+    freq = os.environ.get("RESAMPLE_FREQ", "1h")
+    try:
+        period = pd.Timedelta(freq)
+    except ValueError:
+        period = pd.Timedelta("1h")
+    period_min = period.total_seconds() / 60
+
+    details = []
+    for col, p in predictions.items():
+        current = float(row.get(f"{col}_mean", 0) or 0)
+        thr = p["threshold"]
+        pred = p["predicted"]
+        slope = pred - current
+        ratio = pred / thr if thr else 0.0
+        crossed = pred >= thr or current >= thr
+        ratio = max(ratio, current / thr if thr else 0.0)
+        if crossed:
+            minutes = 0.0
+        elif slope > 1e-9:
+            minutes = max(0.0, (thr - current) / slope * period_min)
+        else:
+            minutes = None
+        details.append({
+            "param": col, "current": round(current, 3), "predicted": pred,
+            "threshold": thr, "usage_pct": round(ratio * 100, 1),
+            "trend": ("crossed" if crossed
+                      else "rising" if slope > 1e-9 else "stable/falling"),
+            "minutes_to_threshold": None if minutes is None else round(minutes, 1),
+        })
+
+    worst = max(details, key=lambda d: d["usage_pct"]) if details else None
+    if not worst:
+        return {"level": "unknown", "message": "No predictions", "details": []}
+    timed = [d["minutes_to_threshold"] for d in details
+             if d["minutes_to_threshold"] is not None]
+    soonest = min(timed) if timed else None
+
+    if worst["usage_pct"] >= 100:
+        level, msg = "unsafe", ("UNSAFE - disconnect the device now. "
+                                f"{worst['param']} is forecast above its limit.")
+    elif worst["usage_pct"] >= 80 or (soonest is not None and soonest <= 2 * period_min):
+        level, msg = "caution", (f"CAUTION - monitor closely. {worst['param']} is at "
+                                 f"{worst['usage_pct']}% of its limit.")
+    else:
+        level = "safe"
+        msg = ("SAFE to keep the device on. Highest load is "
+               f"{worst['param']} at {worst['usage_pct']}% of its limit.")
+    if level != "unsafe":
+        if soonest is None:
+            msg += " No parameter is trending toward its limit, so it can stay on."
+        else:
+            msg += f" Estimated time before any limit is reached: ~{soonest:g} min."
+    return {"level": level, "message": msg, "concerning": worst["param"],
+            "safe_minutes": soonest, "details": details}
+
+
 def batch_inference() -> list:
     """Predicts the next period's values for every node using the
     latest hourly feature row produced by the committed batch
@@ -120,6 +182,7 @@ def batch_inference() -> list:
         results.append({
             "node_id": row["node_id"],
             "ts": str(row["ts"]),
+            "safety": _assess_safety(row, outcome["predictions"]),
             **outcome,
         })
     return results
@@ -176,7 +239,7 @@ def dashboard_summary() -> dict:
 
     _, models, trained_at = get_forecasters()
     trained_at_str = (
-        time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime(trained_at / 1000))
+        time.strftime("%Y-%m-%d %H:%M:%S IST", time.gmtime(trained_at / 1000 + 19800))
         if trained_at else "no model trained yet"
     )
     return {

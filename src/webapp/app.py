@@ -46,6 +46,25 @@ app = FastAPI(title="Fire Risk MLOps Dashboard")
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
+
+def _to_ist(value):
+    """Formats a UTC timestamp (ISO string or datetime) as IST (UTC+5:30)."""
+    from datetime import datetime, timedelta, timezone
+    if value is None or value == "":
+        return ""
+    try:
+        dt = value if isinstance(value, datetime) else datetime.fromisoformat(
+            str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return str(value)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    ist = dt.astimezone(timezone(timedelta(hours=5, minutes=30)))
+    return ist.strftime("%Y-%m-%d %H:%M:%S IST")
+
+
+templates.env.filters["ist"] = _to_ist
+
 NAV_LINKS = [
     ("/", "Dashboard"),
     ("/ingestion", "Ingestion"),
@@ -60,9 +79,14 @@ def _ctx(request: Request, **extra):
     return {"request": request, "nav_links": NAV_LINKS, "grafana_url": GRAFANA_URL, **extra}
 
 
+def _render(name: str, context: dict):
+    return templates.TemplateResponse(context["request"], name, context)
+
+
 @app.on_event("startup")
 def on_startup():
     init_db()
+    m.restore_from_retrain_history(retrain.get_retrain_history())
     _maybe_start_scheduler()
 
 
@@ -108,7 +132,7 @@ def metrics_endpoint():
 @app.get("/")
 def dashboard(request: Request):
     summary = services.dashboard_summary()
-    return templates.TemplateResponse(
+    return _render(
         "dashboard.html", _ctx(request, summary=summary, title="Dashboard"),
     )
 
@@ -127,7 +151,7 @@ def ingestion(request: Request):
         "FROM readings GROUP BY node_id"
     ).fetchall()
     conn.close()
-    return templates.TemplateResponse(
+    return _render(
         "ingestion.html",
         _ctx(request, readings=[dict(r) for r in rows],
              node_counts=[dict(r) for r in node_counts], title="Ingestion"),
@@ -139,7 +163,7 @@ def ingestion(request: Request):
 def drift_page(request: Request):
     report = drift.check_drift()
     history = retrain.get_retrain_history()[::-1][:10]
-    return templates.TemplateResponse(
+    return _render(
         "drift.html", _ctx(request, report=report, history=history, title="Drift Detection"),
     )
 
@@ -176,7 +200,7 @@ def batch_page(request: Request):
         for col, pred in row["predictions"].items():
             m.LAST_PREDICTED_VALUE.labels(node_id=row["node_id"], parameter=col, mode="batch") \
                 .set(pred["predicted"])
-    return templates.TemplateResponse(
+    return _render(
         "batch.html", _ctx(request, results=results, title="Batch Inference"),
     )
 
@@ -197,7 +221,7 @@ def realtime_page(request: Request, node_id: str | None = None):
             for col, pred in result.get("predictions", {}).items():
                 m.LAST_PREDICTED_VALUE.labels(node_id=selected, parameter=col, mode="realtime") \
                     .set(pred["predicted"])
-    return templates.TemplateResponse(
+    return _render(
         "realtime.html",
         _ctx(request, nodes=nodes, selected=selected, result=result, title="Real-time Inference"),
     )

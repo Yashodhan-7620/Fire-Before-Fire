@@ -23,7 +23,7 @@
   <h3 style="margin-top:0;">Most recent alert</h3>
   {% if summary.last_alert %}
     <p><span class="badge badge-danger">{{ summary.last_alert.source }}</span>
-       node <strong>{{ summary.last_alert.node_id }}</strong> at {{ summary.last_alert.ts }}</p>
+       node <strong>{{ summary.last_alert.node_id }}</strong> at {{ summary.last_alert.ts|ist }}</p>
     <p class="muted">{{ summary.last_alert.reason }}</p>
   {% else %}
     <p class="muted">No alerts recorded yet.</p>

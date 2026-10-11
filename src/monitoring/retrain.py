@@ -103,7 +103,7 @@ def run_retrain_pipeline(trigger: str = "manual") -> dict:
 
     env = os.environ.copy()
     env["RAW_SOURCE"] = "csv"
-    env.setdefault("RESAMPLE_FREQ", os.environ.get("RESAMPLE_FREQ", "1h"))
+    env.setdefault("RESAMPLE_FREQ", os.environ.get("RESAMPLE_FREQ", "5min"))
 
     result = subprocess.run(
         ["dvc", "repro", "--no-commit"],
