@@ -111,6 +111,8 @@ void sendToIngestAPI() {
   if (WiFi.status() != WL_CONNECTED) return;
   HTTPClient http;
   http.begin(INGEST_URL);
+  http.setConnectTimeout(800);
+  http.setTimeout(1000);
   http.addHeader("Content-Type", "application/json");
 
   String payload = "{";
@@ -126,6 +128,8 @@ void sendToIngestAPI() {
   if (code <= 0) {
     Serial.print("Ingest POST failed: ");
     Serial.println(http.errorToString(code));
+  } else {
+    Serial.printf("Ingest POST -> HTTP %d\n", code);
   }
   http.end();
 }
@@ -189,7 +193,7 @@ void setup() {
   Blynk.begin(auth, ssid, pass);
 
   timer.setInterval(2000L, readTemperature);
-  timer.setInterval(5000L, readPowerAndPush);
+  timer.setInterval(2000L, readPowerAndPush);
   timer.setInterval(2000L, updateLcdAndRGB);
 
   lastMillis = millis();

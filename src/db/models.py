@@ -48,8 +48,10 @@ def init_db():
     conn.close()
 
 
-def insert_reading(node_id: str, temperature_c: float, voltage_v: float,
-                    current_a: float, power_w: float, kwh: float):
+def insert_reading(
+    node_id: str, temperature_c: float, voltage_v: float,
+    current_a: float, power_w: float, kwh: float,
+):
     conn = get_conn()
     conn.execute(
         """INSERT INTO readings (node_id, ts, temperature_c, voltage_v, current_a, power_w, kwh)

@@ -1,0 +1,69 @@
+{
+  "title": "Fire Risk MLOps",
+  "uid": "fire-risk-mlops",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Drift checks vs. drift events",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "drift_checks_total", "legendFormat": "drift checks" },
+        { "expr": "drift_events_total", "legendFormat": "drift detected" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Retrain runs (by trigger)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "retrain_runs_total", "legendFormat": "{{trigger}}" },
+        { "expr": "retrain_failures_total", "legendFormat": "failures" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Emergency alerts (batch vs. real-time)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "emergency_alerts_total", "legendFormat": "{{mode}}" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Inference latency (p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(inference_latency_seconds_bucket[5m])) by (le, mode))",
+          "legendFormat": "{{mode}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Last predicted value per node/parameter",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "targets": [
+        { "expr": "last_predicted_value", "legendFormat": "{{node_id}} {{parameter}} ({{mode}})" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Model last trained (unix timestamp)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 24 },
+      "targets": [
+        { "expr": "model_last_trained_timestamp", "legendFormat": "last trained" }
+      ]
+    }
+  ]
+}

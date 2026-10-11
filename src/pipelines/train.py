@@ -23,16 +23,15 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
-import mlflow
-import mlflow.sklearn
-import numpy as np
-import pandas as pd
-from sklearn.ensemble import IsolationForest, RandomForestRegressor
-from sklearn.metrics import mean_absolute_error
-from sklearn.model_selection import train_test_split
+import mlflow  # noqa: E402
+import mlflow.sklearn  # noqa: E402
+import pandas as pd  # noqa: E402
+from sklearn.ensemble import IsolationForest, RandomForestRegressor  # noqa: E402
+from sklearn.metrics import mean_absolute_error  # noqa: E402
+from sklearn.model_selection import train_test_split  # noqa: E402
 
-from src.pipelines.preprocess import FEATURE_COLS
-from src.db.models import insert_alert
+from src.pipelines.preprocess import FEATURE_COLS  # noqa: E402
+from src.db.models import insert_alert  # noqa: E402
 
 FEATURES_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "features.parquet"
 
@@ -41,10 +40,10 @@ EXPERIMENT_NAME = "fire_risk_forecasting"
 MODEL_NAME = "fire_risk_forecaster"
 
 THRESHOLDS = {
-    "temperature_c": 55.0,
-    "power_w": 1500.0,
-    "current_a": 10.0,
-    "voltage_v": 280.0,
+    "temperature_c": 33.0,
+    "power_w": 1.0,
+    "current_a": 0.09,
+    "voltage_v": 10.0,
 }
 
 FEATURE_INPUT_COLS = [f"{c}_mean" for c in FEATURE_COLS] + \
